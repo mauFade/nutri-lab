@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.contrib.auth.models import User
@@ -50,7 +50,7 @@ def register(request):
             
             # Faz o envio do email
             path_template = os.path.join(settings.BASE_DIR, "authentication/templates/emails/confirm.html")
-            email_html(path_template, "Cadastro confirmado", [email,], username=name, link_ativacao="127.0.0.1:8000/auth/ativar_conta/{token}")
+            email_html(path_template, "Cadastro confirmado", [email,], username=name, link_ativacao=f"127.0.0.1:8000/auth/activate/{token}")
             
             messages.add_message(request, constants.SUCCESS, "Usuário cadastrado com sucesso!")
             return redirect("/auth/login")
@@ -69,7 +69,7 @@ def login(request):
         name = request.POST.get("usuario")
         password = request.POST.get("senha")
 
-        user = auth.authenticate(username=name, password=password)
+        user = auth.authenticate(username = name, password = password)
 
         if not user:
             messages.add_message(request, constants.ERROR, "Usuário não encontrado")
@@ -82,5 +82,19 @@ def logout(request):
     auth.logout(request)
     return redirect('/auth/login')
 
-def activate_account(request,token):
-    return HttpResponse(token)
+def activate_account(request, token):
+    token = get_object_or_404(Activate, token = token)
+    if token.active:
+        messages.add_message(request, constants.WARNING, "Este token já foi usado")
+        return redirect("/auth/login")
+    user = User.objects.get(username = token.user.username)
+
+    user.is_active = True
+    user.save()
+
+    token.active = True
+    token.save()
+
+    messages.add_message(request, constants.SUCCESS, "Token autenticado com sucesso!")
+
+    return redirect("/auth/login")
